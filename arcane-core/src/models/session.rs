@@ -18,7 +18,10 @@ mod tests {
     use chrono::NaiveDate;
     use sqlx::SqlitePool;
 
-    #[sqlx::test(migrations = "./src/db/migrations")]
+    #[sqlx::test(
+        migrations = "./src/db/migrations",
+        fixtures("../db/fixtures/categories.sql")
+    )]
     async fn test_session_database_integration(pool: SqlitePool) {
         sqlx::query(
             r#"

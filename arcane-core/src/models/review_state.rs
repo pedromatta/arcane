@@ -7,59 +7,55 @@ pub struct ReviewState {
     id: u32,
     category_id: u32,
     topic: String,
-    ease_factor: f32,
-    interval_days: u32,
-    next_review_date: String,
+    #[serde(default = "default_ease_factor")]
+    ease_factor: Option<f32>,
+    #[serde(default = "default_interval_days")]
+    interval_days: Option<u32>,
+    next_review_date: NaiveDate,
 }
 
-impl ReviewState {
-    pub fn is_due(&self, current_date: NaiveDate) -> bool {
-        self.get_date() <= current_date
-    }
+fn default_ease_factor() -> Option<f32> {
+    Some(2.5)
+}
 
-    fn get_date(&self) -> NaiveDate {
-        NaiveDate::parse_from_str(&self.next_review_date, "%Y-%m-%d")
-            .expect("Database next_review_date column contained invalid date format")
-    }
+fn default_interval_days() -> Option<u32> {
+    Some(1)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::NaiveDate;
+    use sqlx::SqlitePool;
 
-    fn mock_review() -> ReviewState {
-        ReviewState {
-            id: 1,
-            category_id: 1,
-            topic: "Work".to_string(),
-            ease_factor: 2.5,
-            interval_days: 1,
-            next_review_date: "2026-06-06".to_string(),
-        }
-    }
+    #[sqlx::test(
+        migrations = "./src/db/migrations",
+        fixtures("../db/fixtures/categories.sql")
+    )]
+    async fn test_review_state_database_integration(pool: SqlitePool) {
+        sqlx::query(
+            r#"
+                INSERT INTO review_states (category_id, topic, ease_factor, interval_days, next_review_date)
+                VALUES (1, 'Work', 2.5, 3, '2026-06-10')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to insert review state data");
 
-    #[test]
-    fn test_review_state_creation() {
-        let review = mock_review();
+        let review_state: ReviewState = sqlx::query_as("SELECT * FROM review_states")
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch review state data");
 
-        assert_eq!(review.id, 1);
-        assert_eq!(review.category_id, 1);
-        assert_eq!(review.topic, "Work".to_string());
-        assert_eq!(review.ease_factor, 2.5);
-        assert_eq!(review.interval_days, 1);
-        assert_eq!(review.next_review_date, "2026-06-06".to_string());
-    }
-
-    #[test]
-    fn test_review_is_due() {
-        let review = mock_review();
-
-        let past_date = NaiveDate::from_ymd_opt(2026, 6, 5).unwrap();
-        let exact_date = NaiveDate::from_ymd_opt(2026, 6, 6).unwrap();
-        let future_date = NaiveDate::from_ymd_opt(2026, 6, 7).unwrap();
-
-        assert!(!review.is_due(past_date));
-        assert!(review.is_due(exact_date));
-        assert!(review.is_due(future_date));
+        assert_eq!(review_state.id, 1);
+        assert_eq!(review_state.category_id, 1);
+        assert_eq!(review_state.topic, "Work".to_string());
+        assert_eq!(review_state.ease_factor, Some(2.5));
+        assert_eq!(review_state.interval_days, Some(3));
+        assert_eq!(
+            review_state.next_review_date,
+            NaiveDate::from_ymd_opt(2026, 6, 10).unwrap()
+        );
     }
 }
