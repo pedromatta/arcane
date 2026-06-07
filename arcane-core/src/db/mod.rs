@@ -1,5 +1,6 @@
 use crate::error::ArcaneError;
 use std::str::FromStr;
+pub mod category;
 
 use sqlx::{
     SqlitePool,
@@ -16,6 +17,5 @@ pub async fn establish_connection(database_url: &str) -> Result<SqlitePool, Arca
 
     sqlx::migrate!("./src/db/migrations/").run(&pool).await?;
 
-    println!("Database connection established and migrations applied successfully.");
     Ok(pool)
 }
