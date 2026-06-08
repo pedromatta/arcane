@@ -63,11 +63,11 @@ pub enum ScheduleCommands {
     /// Add a weekly scheduled slot
     Add {
         /// Category name to schedule
-        #[arg(short, long)]
+        #[arg(long)]
         category: String,
 
         /// Start time for the slot (HH:MM)
-        #[arg(short, long)]
+        #[arg(long)]
         time: String,
 
         /// Active weekdays (e.g. mon,tue,wed or weekdays or everyday)
