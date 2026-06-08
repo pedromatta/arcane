@@ -4,6 +4,7 @@ mod commands;
 use crate::cli::{CategoryCommands, Cli, Commands};
 use crate::commands::add::add_category;
 use crate::commands::list::list_categories;
+use crate::commands::remove::remove_category_cmd;
 use crate::commands::setup::{get_config, initialize_app};
 use clap::Parser;
 
@@ -34,6 +35,9 @@ async fn main() -> anyhow::Result<()> {
             }
             CategoryCommands::List => {
                 list_categories(&pool).await;
+            }
+            CategoryCommands::Remove { name } => {
+                remove_category_cmd(&pool, name).await;
             }
         },
         _ => {

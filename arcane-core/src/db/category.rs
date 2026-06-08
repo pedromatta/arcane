@@ -2,6 +2,12 @@ use crate::models::category::Category;
 use crate::error::ArcaneError;
 use sqlx::SqlitePool;
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum RemovalResult {
+    Deleted,
+    Archived,
+}
+
 pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), ArcaneError> {
     let trimmed_name = category.name.trim();
     if trimmed_name.is_empty() {
@@ -39,10 +45,43 @@ pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), A
 }
 
 pub async fn list_categories(pool: &SqlitePool) -> Result<Vec<Category>, ArcaneError> {
-    let categories: Vec<Category> = sqlx::query_as("SELECT * FROM categories")
+    let categories: Vec<Category> = sqlx::query_as("SELECT * FROM categories WHERE is_archived = 0")
         .fetch_all(pool)
         .await?;
     Ok(categories)
+}
+
+pub async fn remove_category(name: &str, pool: &SqlitePool) -> Result<RemovalResult, ArcaneError> {
+    let trimmed_name = name.trim();
+
+    let category_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE name = ?")
+        .bind(trimmed_name)
+        .fetch_optional(pool)
+        .await?;
+
+    let category_id = match category_id_opt {
+        Some(id) => id,
+        None => return Err(ArcaneError::CategoryValidation(format!("Category '{}' does not exist", trimmed_name))),
+    };
+
+    let session_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE category_id = ?")
+        .bind(category_id)
+        .fetch_one(pool)
+        .await?;
+
+    if session_count == 0 {
+        sqlx::query("DELETE FROM categories WHERE id = ?")
+            .bind(category_id)
+            .execute(pool)
+            .await?;
+        Ok(RemovalResult::Deleted)
+    } else {
+        sqlx::query("UPDATE categories SET is_archived = 1 WHERE id = ?")
+            .bind(category_id)
+            .execute(pool)
+            .await?;
+        Ok(RemovalResult::Archived)
+    }
 }
 
 fn validate_color(color: &str) -> Result<(), ArcaneError> {
@@ -210,5 +249,69 @@ mod tests {
         assert_eq!(categories[0].default_minutes, 25);
         assert_eq!(categories[0].color, "#FF0000");
         assert!(!categories[0].is_archived);
+    }
+
+    #[sqlx::test(migrations = "./src/db/migrations")]
+    async fn test_remove_category(pool: SqlitePool) {
+        add_category(
+            Category {
+                id: 0,
+                name: "Work".to_string(),
+                default_minutes: 25,
+                color: "#FF0000".to_string(),
+                is_archived: false,
+            },
+            &pool,
+        )
+        .await
+        .unwrap();
+
+        // 1. Remove category that has no sessions (expect RemovalResult::Deleted)
+        let res = remove_category("Work", &pool).await.unwrap();
+        assert_eq!(res, RemovalResult::Deleted);
+
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM categories WHERE name = 'Work'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+
+        // 2. Re-create and simulate a session log
+        add_category(
+            Category {
+                id: 0,
+                name: "Rust".to_string(),
+                default_minutes: 60,
+                color: "magenta".to_string(),
+                is_archived: false,
+            },
+            &pool,
+        )
+        .await
+        .unwrap();
+
+        sqlx::query(
+            r#"
+            INSERT INTO sessions (category_id, start_time, duration_minutes, notes, rating)
+            VALUES (2, '2026-06-08 10:00:00', 60, 'Session', 5)
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // 3. Remove category that has sessions (expect RemovalResult::Archived)
+        let res = remove_category("Rust", &pool).await.unwrap();
+        assert_eq!(res, RemovalResult::Archived);
+
+        let category: Category = sqlx::query_as("SELECT * FROM categories WHERE name = 'Rust'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(category.is_archived);
+
+        // 4. Removing non-existent category (expect error)
+        let err = remove_category("NonExistent", &pool).await;
+        assert!(err.is_err());
     }
 }

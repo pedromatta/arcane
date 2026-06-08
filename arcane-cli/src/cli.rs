@@ -44,4 +44,10 @@ pub enum CategoryCommands {
     },
     /// List all categories
     List,
+    /// Remove a category
+    Remove {
+        /// Name of the category to remove
+        #[arg(short, long)]
+        name: String,
+    },
 }
