@@ -8,6 +8,7 @@ pub async fn add_category(pool: &SqlitePool, name: &str, default_minutes: &u32, 
             name: name.to_string(),
             default_minutes: *default_minutes,
             color: color.to_string(),
+            is_archived: false,
         },
         pool,
     )

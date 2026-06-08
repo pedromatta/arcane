@@ -1,13 +1,11 @@
-use crate::error::ArcaneError;
 use crate::models::category::Category;
+use crate::error::ArcaneError;
 use sqlx::SqlitePool;
 
 pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), ArcaneError> {
     let trimmed_name = category.name.trim();
     if trimmed_name.is_empty() {
-        return Err(ArcaneError::CategoryValidation(
-            "Category name cannot be empty".to_string(),
-        ));
+        return Err(ArcaneError::CategoryValidation("Category name cannot be empty".to_string()));
     }
 
     // Uniqueness validation
@@ -27,13 +25,14 @@ pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), A
 
     sqlx::query(
         r#"
-            INSERT INTO categories (name, default_minutes, color)
-            VALUES (?, ?, ?)
+            INSERT INTO categories (name, default_minutes, color, is_archived)
+            VALUES (?, ?, ?, ?)
         "#,
     )
     .bind(trimmed_name)
     .bind(category.default_minutes)
     .bind(&category.color)
+    .bind(category.is_archived)
     .execute(pool)
     .await?;
     Ok(())
@@ -49,28 +48,13 @@ pub async fn list_categories(pool: &SqlitePool) -> Result<Vec<Category>, ArcaneE
 fn validate_color(color: &str) -> Result<(), ArcaneError> {
     let trimmed = color.trim().to_lowercase();
     if trimmed.is_empty() {
-        return Err(ArcaneError::CategoryValidation(
-            "Color cannot be empty".to_string(),
-        ));
+        return Err(ArcaneError::CategoryValidation("Color cannot be empty".to_string()));
     }
 
-    const NAMED_COLORS: &[&str; 16] = &[
-        "black",
-        "red",
-        "green",
-        "yellow",
-        "blue",
-        "magenta",
-        "cyan",
-        "gray",
-        "darkgray",
-        "lightred",
-        "lightgreen",
-        "lightyellow",
-        "lightblue",
-        "lightmagenta",
-        "lightcyan",
-        "white",
+    const NAMED_COLORS: &[&str] = &[
+        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "gray",
+        "darkgray", "lightred", "lightgreen", "lightyellow", "lightblue",
+        "lightmagenta", "lightcyan", "white",
     ];
 
     if NAMED_COLORS.contains(&trimmed.as_str()) {
@@ -87,9 +71,7 @@ fn validate_color(color: &str) -> Result<(), ArcaneError> {
         &trimmed[..]
     };
 
-    if (hex_body.len() == 3 || hex_body.len() == 6)
-        && hex_body.chars().all(|c| c.is_ascii_hexdigit())
-    {
+    if (hex_body.len() == 3 || hex_body.len() == 6) && hex_body.chars().all(|c| c.is_ascii_hexdigit()) {
         return Ok(());
     }
 
@@ -112,6 +94,7 @@ mod tests {
                 name: "Work".to_string(),
                 default_minutes: 25,
                 color: "#FF0000".to_string(),
+                is_archived: false,
             },
             &pool,
         )
@@ -127,6 +110,7 @@ mod tests {
         assert_eq!(category.name, "Work");
         assert_eq!(category.default_minutes, 25);
         assert_eq!(category.color, "#FF0000");
+        assert!(!category.is_archived);
     }
 
     #[sqlx::test(migrations = "./src/db/migrations")]
@@ -137,6 +121,7 @@ mod tests {
             name: "   ".to_string(),
             default_minutes: 25,
             color: "red".to_string(),
+            is_archived: false,
         };
         let res = add_category(empty_name_cat, &pool).await;
         assert!(matches!(res, Err(ArcaneError::CategoryValidation(_))));
@@ -147,6 +132,7 @@ mod tests {
             name: "Work".to_string(),
             default_minutes: 25,
             color: "red".to_string(),
+            is_archived: false,
         };
         assert!(add_category(valid_cat, &pool).await.is_ok());
 
@@ -156,6 +142,7 @@ mod tests {
             name: "Work".to_string(),
             default_minutes: 30,
             color: "blue".to_string(),
+            is_archived: false,
         };
         let res = add_category(dup_cat, &pool).await;
         assert!(matches!(res, Err(ArcaneError::CategoryValidation(_))));
@@ -166,6 +153,7 @@ mod tests {
             name: "Hex1".to_string(),
             default_minutes: 25,
             color: "#FFAA00".to_string(),
+            is_archived: false,
         };
         assert!(add_category(valid_hex_1, &pool).await.is_ok());
 
@@ -174,6 +162,7 @@ mod tests {
             name: "Hex2".to_string(),
             default_minutes: 25,
             color: "abc".to_string(),
+            is_archived: false,
         };
         assert!(add_category(valid_hex_2, &pool).await.is_ok());
 
@@ -183,6 +172,7 @@ mod tests {
             name: "Ansi".to_string(),
             default_minutes: 25,
             color: "128".to_string(),
+            is_archived: false,
         };
         assert!(add_category(valid_ansi, &pool).await.is_ok());
 
@@ -192,6 +182,7 @@ mod tests {
             name: "InvalidColor".to_string(),
             default_minutes: 25,
             color: "not-a-color".to_string(),
+            is_archived: false,
         };
         let res = add_category(invalid_color, &pool).await;
         assert!(matches!(res, Err(ArcaneError::CategoryValidation(_))));
@@ -205,6 +196,7 @@ mod tests {
                 name: "Work".to_string(),
                 default_minutes: 25,
                 color: "#FF0000".to_string(),
+                is_archived: false,
             },
             &pool,
         )
@@ -217,5 +209,6 @@ mod tests {
         assert_eq!(categories[0].name, "Work");
         assert_eq!(categories[0].default_minutes, 25);
         assert_eq!(categories[0].color, "#FF0000");
+        assert!(!categories[0].is_archived);
     }
 }

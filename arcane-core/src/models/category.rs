@@ -7,4 +7,6 @@ pub struct Category {
     pub name: String,
     pub default_minutes: u32,
     pub color: String,
+    #[serde(default)]
+    pub is_archived: bool,
 }

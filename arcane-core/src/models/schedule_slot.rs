@@ -16,7 +16,7 @@ mod tests {
 
     #[sqlx::test(
         migrations = "./src/db/migrations",
-        fixtures = "../db/fixtures/categories.sql"
+        fixtures("../db/fixtures/categories.sql")
     )]
     async fn test_schedule_slot_database_integration(pool: SqlitePool) {
         sqlx::query(

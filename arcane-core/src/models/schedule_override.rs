@@ -18,7 +18,7 @@ mod tests {
 
     #[sqlx::test(
         migrations = "./src/db/migrations",
-        fixtures = "../db/fixtures/categories.sql"
+        fixtures("../db/fixtures/categories.sql")
     )]
     async fn test_schedule_override_database_integration(pool: SqlitePool) {
         sqlx::query(
@@ -32,7 +32,7 @@ mod tests {
         .await
         .expect("Failed to insert schedule override data");
 
-        let overrides: ScheduleOverride = sqlx::query_as("SELECT * FROM schedule_overrides")
+        let overrides: Vec<ScheduleOverride> = sqlx::query_as("SELECT * FROM schedule_overrides")
             .fetch_all(&pool)
             .await
             .expect("Failed to fetch schedule override data");
@@ -41,12 +41,18 @@ mod tests {
 
         assert_eq!(overrides[0].id, 1);
         assert_eq!(overrides[0].category_id, Some(1));
-        assert_eq!(overrides[0].override_date, NaiveDate::from_ymd(2026, 6, 8));
+        assert_eq!(
+            overrides[0].override_date,
+            NaiveDate::from_ymd_opt(2026, 6, 8).unwrap()
+        );
         assert_eq!(overrides[0].time_of_day, "14:30");
 
         assert_eq!(overrides[1].id, 2);
         assert_eq!(overrides[1].category_id, None);
-        assert_eq!(overrides[1].override_date, NaiveDate::from_ymd(2026, 6, 9));
+        assert_eq!(
+            overrides[1].override_date,
+            NaiveDate::from_ymd_opt(2026, 6, 9).unwrap()
+        );
         assert_eq!(overrides[1].time_of_day, "10:00");
     }
 }
