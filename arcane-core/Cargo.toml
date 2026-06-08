@@ -8,8 +8,9 @@ edition.workspace = true
 [dependencies]
 dotenvy = "0.15.7"
 serde = { version = "1.0.228", features = ["derive"] }
-tokio.workspace = true
 toml = "1.1.2"
+tokio.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
+directories = "6.0.0"

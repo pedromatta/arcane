@@ -11,3 +11,5 @@ arcane-core = { version = "0.1.0", path = "../arcane-core" }
 dotenvy = "0.15.7"
 tokio.workspace = true
 sqlx.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
