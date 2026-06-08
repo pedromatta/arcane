@@ -2,7 +2,8 @@ CREATE TABLE categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     default_minutes INTEGER NOT NULL,
-    color TEXT NOT NULL
+    color TEXT NOT NULL,
+    is_archived INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE schedule_slots (
@@ -15,9 +16,9 @@ CREATE TABLE schedule_slots (
 
 CREATE TABLE schedule_overrides (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category_id INTEGER,
     override_date TEXT NOT NULL, -- Format: "YYYY-MM-DD"
     time_of_day TEXT NOT NULL, -- Format: "HH:MM"
-    category_id INTEGER,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
     UNIQUE(override_date, time_of_day)
 );
