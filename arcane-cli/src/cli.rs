@@ -33,6 +33,8 @@ pub enum Commands {
         /// Path to the declarative manifest TOML file
         path: String,
     },
+    /// Export categories and schedule as a serialized TOML manifest to stdout
+    Export,
 }
 
 #[derive(Subcommand, Debug)]

@@ -8,6 +8,7 @@ use crate::commands::remove::remove_category_cmd;
 use crate::commands::schedule::{add_slot, list_slots, remove_slot};
 use crate::commands::setup::{get_config, initialize_app};
 use crate::commands::import::import_cmd;
+use crate::commands::export::export_cmd;
 use clap::Parser;
 
 #[tokio::main]
@@ -59,6 +60,9 @@ async fn main() -> anyhow::Result<()> {
         },
         Some(Commands::Import { path }) => {
             import_cmd(&pool, path).await;
+        }
+        Some(Commands::Export) => {
+            export_cmd(&pool).await;
         }
         _ => {
             println!("Welcome to Arcane! Use --help to list commands.");
@@ -112,6 +116,45 @@ mod tests {
         assert_eq!(slots[0].category_name, "Rust CLI Test");
         assert_eq!(slots[0].time_of_day, "14:00");
         assert_eq!(slots[0].days_of_week, 31);
+
+        let _ = std::fs::remove_file(manifest_path);
+    }
+
+    #[tokio::test]
+    async fn test_cli_export() {
+        let pool = initialize_app("sqlite::memory:").await.unwrap();
+        
+        let manifest_path = std::env::current_dir()
+            .unwrap()
+            .join("test_export_manifest.toml");
+        
+        let manifest_content = r#"[[category]]
+name = "Rust CLI Test"
+default_minutes = 45
+color = "blue"
+
+[[schedule]]
+time = "14:00"
+category = "Rust CLI Test"
+days = 31
+"#;
+        std::fs::write(&manifest_path, manifest_content).unwrap();
+
+        import_cmd(&pool, manifest_path.to_str().unwrap()).await;
+
+        let exported = arcane_core::db::schedule::export_manifest(&pool).await.unwrap();
+        let toml_str = toml::to_string(&exported).unwrap();
+        
+        // Assert that the serialized output matches key parts of the TOML structure
+        assert!(toml_str.contains("name = \"Rust CLI Test\""));
+        assert!(toml_str.contains("default_minutes = 45"));
+        assert!(toml_str.contains("color = \"blue\""));
+        assert!(toml_str.contains("time = \"14:00\""));
+        assert!(toml_str.contains("category = \"Rust CLI Test\""));
+        assert!(toml_str.contains("days = 31"));
+
+        // Call export_cmd to verify execution
+        export_cmd(&pool).await;
 
         let _ = std::fs::remove_file(manifest_path);
     }

@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use directories::ProjectDirs;
 use crate::error::ArcaneError;
@@ -8,9 +8,9 @@ pub struct AppConfig {
     pub general: GeneralConfig,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImportManifest {
-    #[serde(default, alias = "category", alias = "categories")]
+    #[serde(rename = "category", default, alias = "category", alias = "categories")]
     pub categories: Vec<CategoryConfig>,
     pub schedule: Option<Vec<ScheduleConfig>>,
 }
@@ -26,14 +26,14 @@ fn default_notifications() -> bool {
     true
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CategoryConfig {
     pub name: String,
     pub default_minutes: u32,
     pub color: String,
 }
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ScheduleConfig {
     pub time: String,
     pub category: String,

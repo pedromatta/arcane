@@ -304,6 +304,36 @@ pub async fn import_manifest(manifest: &ImportManifest, pool: &SqlitePool) -> Re
     Ok(())
 }
 
+pub async fn export_manifest(pool: &SqlitePool) -> Result<ImportManifest, ArcaneError> {
+    use crate::config::{CategoryConfig, ScheduleConfig};
+    use crate::db::category::list_categories;
+
+    let categories_db = list_categories(pool).await?;
+    let categories: Vec<CategoryConfig> = categories_db
+        .into_iter()
+        .map(|c| CategoryConfig {
+            name: c.name,
+            default_minutes: c.default_minutes,
+            color: c.color,
+        })
+        .collect();
+
+    let slots_db = list_schedule_slots_detail(pool).await?;
+    let schedule: Vec<ScheduleConfig> = slots_db
+        .into_iter()
+        .map(|s| ScheduleConfig {
+            time: s.time_of_day,
+            category: s.category_name,
+            days: s.days_of_week,
+        })
+        .collect();
+
+    Ok(ImportManifest {
+        categories,
+        schedule: if schedule.is_empty() { None } else { Some(schedule) },
+    })
+}
+
 fn validate_color(color: &str) -> Result<(), ArcaneError> {
     let trimmed = color.trim().to_lowercase();
     if trimmed.is_empty() {
@@ -423,5 +453,14 @@ mod tests {
         assert_eq!(slots[0].category_name, "Work");
         assert_eq!(slots[0].time_of_day, "09:00");
         assert_eq!(slots[0].days_of_week, 31);
+
+        let exported = export_manifest(&pool).await.unwrap();
+        assert_eq!(exported.categories.len(), 2);
+        assert_eq!(exported.categories[0].name, "Work");
+        assert_eq!(exported.categories[1].name, "Rust");
+        assert_eq!(exported.schedule.as_ref().unwrap().len(), 2);
+        assert_eq!(exported.schedule.as_ref().unwrap()[0].time, "09:00");
+        assert_eq!(exported.schedule.as_ref().unwrap()[0].category, "Work");
+        assert_eq!(exported.schedule.as_ref().unwrap()[0].days, 31);
     }
 }
