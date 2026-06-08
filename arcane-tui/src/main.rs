@@ -12,7 +12,7 @@ pub async fn initialize_app(db_url: &str) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().expect("Failed to load .env file");
+    let _ = dotenvy::dotenv();
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
 
