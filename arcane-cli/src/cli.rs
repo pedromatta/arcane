@@ -24,6 +24,10 @@ pub enum Commands {
         #[command(subcommand)]
         subcommand: CategoryCommands,
     },
+    Schedule {
+        #[command(subcommand)]
+        subcommand: ScheduleCommands,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -49,5 +53,31 @@ pub enum CategoryCommands {
         /// Name of the category to remove
         #[arg(short, long)]
         name: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ScheduleCommands {
+    /// List all weekly scheduled slots
+    List,
+    /// Add a weekly scheduled slot
+    Add {
+        /// Category ID to schedule
+        #[arg(long)]
+        category_id: u32,
+
+        /// Start time for the slot (HH:MM)
+        #[arg(short, long)]
+        time: String,
+
+        /// Active weekdays bitmask (0-127)
+        #[arg(short, long)]
+        days: u8,
+    },
+    /// Remove a weekly scheduled slot
+    Remove {
+        /// ID of the schedule slot to remove
+        #[arg(short, long)]
+        id: u32,
     },
 }

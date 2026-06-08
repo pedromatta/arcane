@@ -1,10 +1,11 @@
 mod cli;
 mod commands;
 
-use crate::cli::{CategoryCommands, Cli, Commands};
+use crate::cli::{CategoryCommands, Cli, Commands, ScheduleCommands};
 use crate::commands::add::add_category;
 use crate::commands::list::list_categories;
 use crate::commands::remove::remove_category_cmd;
+use crate::commands::schedule::{add_slot, list_slots, remove_slot};
 use crate::commands::setup::{get_config, initialize_app};
 use clap::Parser;
 
@@ -38,6 +39,21 @@ async fn main() -> anyhow::Result<()> {
             }
             CategoryCommands::Remove { name } => {
                 remove_category_cmd(&pool, name).await;
+            }
+        },
+        Some(Commands::Schedule { subcommand }) => match subcommand {
+            ScheduleCommands::Add {
+                category_id,
+                time,
+                days,
+            } => {
+                add_slot(&pool, *category_id, time, *days).await;
+            }
+            ScheduleCommands::List => {
+                list_slots(&pool).await;
+            }
+            ScheduleCommands::Remove { id } => {
+                remove_slot(&pool, *id).await;
             }
         },
         _ => {
