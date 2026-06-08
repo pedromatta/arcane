@@ -13,7 +13,7 @@ pub enum CategoryCommands {
         default_minutes: u32,
 
         /// Color of the category (hex code, eg. #FF5733)
-        #[arg(short, long, default_value = "#FFFFFF")]
+        #[arg(long, default_value = "#FFFFFF")]
         color: String,
     },
     /// List all categories
