@@ -19,6 +19,9 @@ pub enum ArcaneError {
 
     #[error("Failed to parse structure date: {0}")]
     Chrono(#[from] chrono::ParseError),
+
+    #[error("Category validation failed: {0}")]
+    CategoryValidation(String),
 }
 
 #[cfg(test)]
