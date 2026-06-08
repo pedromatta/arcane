@@ -1,6 +1,7 @@
 use crate::error::ArcaneError;
 use std::str::FromStr;
 pub mod category;
+pub mod schedule;
 
 use sqlx::{
     SqlitePool,
