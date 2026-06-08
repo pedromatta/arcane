@@ -1,7 +1,7 @@
+use crate::error::ArcaneError;
+use directories::ProjectDirs;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-use directories::ProjectDirs;
-use crate::error::ArcaneError;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
@@ -36,53 +36,35 @@ pub struct ScheduleConfig {
     pub days: u8,
 }
 
-pub fn get_args_config_path(args: &str) -> Option<PathBuf> {
-    let path = PathBuf::from(args);
-    if path.is_absolute() {
-        Some(path)
-    } else {
-        std::env::current_dir().ok().map(|cwd| cwd.join(path))
-    }
-}
-
-pub fn get_env_config_path() -> Option<PathBuf> {
-    if let Ok(env_path) = std::env::var("ARCANE_CONFIG_FILE") {
-        let path = PathBuf::from(env_path);
-        if path.is_absolute() {
-            Some(path)
-        } else {
-            std::env::current_dir().ok().map(|cwd| cwd.join(path))
-        }
-    } else {
-        None
-    }
-}
-
 pub fn get_default_config_path() -> Option<PathBuf> {
     let proj_dirs = ProjectDirs::from("", "Arcane", "arcane")?;
-    let config_dir = proj_dirs.config_dir();
-
-    generate_default_config(config_dir).ok()?;
-
-    Some(config_dir.join("config.toml"))
+    Some(proj_dirs.config_dir().join("config.toml"))
 }
 
-fn generate_default_config(config_dir: &Path) -> Result<(), ArcaneError> {
-    if !config_dir.exists() {
-        std::fs::create_dir_all(config_dir)?;
+pub fn generate_default_config(config_path: &Path) -> Result<(), ArcaneError> {
+    if let Some(parent) = config_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
     }
-    let config_path = config_dir.join("config.toml");
+
     if !config_path.exists() {
         let default_db_path = get_default_db_path()
-            .ok_or_else(|| ArcaneError::ConfigValidation("Failed to determine default database path".to_string()))?
+            .ok_or_else(|| {
+                ArcaneError::ConfigValidation(
+                    "Failed to determine default database path".to_string(),
+                )
+            })?
             .to_string_lossy()
             .into_owned();
+
         let default_config = format!(
             "[general]\ndatabase_path = \"{}\"\nnotifications_enabled = true\n",
             default_db_path
         );
         std::fs::write(config_path, default_config)?;
     }
+
     Ok(())
 }
 
@@ -153,5 +135,11 @@ mod tests {
         assert_eq!(config.categories[0].name, "Reading");
         assert_eq!(config.categories[0].default_minutes, 30);
         assert_eq!(config.categories[0].color, "blue");
+    }
+
+    #[test]
+    fn default_config_path_resolution_is_stateless() {
+        let path = get_default_config_path().expect("Failed to get default config path");
+        assert!(path.ends_with("config.toml"));
     }
 }

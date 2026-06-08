@@ -3,17 +3,15 @@ mod commands;
 
 use crate::cli::{CategoryCommands, Cli, Commands};
 use crate::commands::add::add_category;
-use crate::commands::setup::{get_config, initialize_app};
 use crate::commands::list::list_categories;
+use crate::commands::setup::{get_config, initialize_app};
 use clap::Parser;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _ = dotenvy::dotenv();
-
     let cli = Cli::parse();
 
-    let config = get_config(cli.config.clone())?;
+    let config = get_config(cli.config)?;
 
     let db_url = config
         .general

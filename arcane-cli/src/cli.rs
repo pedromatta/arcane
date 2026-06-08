@@ -11,9 +11,10 @@ pub struct Cli {
         global = true,
         short,
         long,
-        help = "Define a custom path to the config file"
+        help = "Define a custom path to the config file",
+        env = "ARCANE_CONFIG_FILE"
     )]
-    pub config: Option<String>,
+    pub config: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]
