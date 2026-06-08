@@ -11,6 +11,12 @@ pub enum ArcaneError {
     #[error("Failed to parse configuration: {0}")]
     Config(#[from] toml::de::Error),
 
+    #[error("I/O error occurred: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Configuration validation failed: {0}")]
+    ConfigValidation(String),
+
     #[error("Failed to parse structure date: {0}")]
     Chrono(#[from] chrono::ParseError),
 }

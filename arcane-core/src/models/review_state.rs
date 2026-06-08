@@ -4,22 +4,12 @@ use sqlx::FromRow;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ReviewState {
-    id: u32,
-    category_id: u32,
-    topic: String,
-    #[serde(default = "default_ease_factor")]
-    ease_factor: Option<f32>,
-    #[serde(default = "default_interval_days")]
-    interval_days: Option<u32>,
-    next_review_date: NaiveDate,
-}
-
-fn default_ease_factor() -> Option<f32> {
-    Some(2.5)
-}
-
-fn default_interval_days() -> Option<u32> {
-    Some(1)
+    pub id: u32,
+    pub category_id: u32,
+    pub topic: String,
+    pub ease_factor: f64,
+    pub interval_days: u32,
+    pub next_review_date: NaiveDate,
 }
 
 #[cfg(test)]
@@ -51,8 +41,8 @@ mod tests {
         assert_eq!(review_state.id, 1);
         assert_eq!(review_state.category_id, 1);
         assert_eq!(review_state.topic, "Work".to_string());
-        assert_eq!(review_state.ease_factor, Some(2.5));
-        assert_eq!(review_state.interval_days, Some(3));
+        assert_eq!(review_state.ease_factor, 2.5);
+        assert_eq!(review_state.interval_days, 3);
         assert_eq!(
             review_state.next_review_date,
             NaiveDate::from_ymd_opt(2026, 6, 10).unwrap()

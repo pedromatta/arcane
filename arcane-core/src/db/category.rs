@@ -1,7 +1,8 @@
 use crate::models::category::Category;
+use crate::error::ArcaneError;
 use sqlx::SqlitePool;
 
-pub async fn add_category_async(category: Category, pool: &SqlitePool) {
+pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), ArcaneError> {
     sqlx::query(
         r#"
             INSERT INTO categories (name, default_minutes, color)
@@ -12,16 +13,15 @@ pub async fn add_category_async(category: Category, pool: &SqlitePool) {
     .bind(category.default_minutes)
     .bind(&category.color)
     .execute(pool)
-    .await
-    .expect("Failed to insert category data");
+    .await?;
+    Ok(())
 }
 
-pub async fn list_categories_async(pool: &SqlitePool) -> Vec<Category> {
+pub async fn list_categories(pool: &SqlitePool) -> Result<Vec<Category>, ArcaneError> {
     let categories: Vec<Category> = sqlx::query_as("SELECT * FROM categories")
         .fetch_all(pool)
-        .await
-        .expect("Failed to fetch categories data");
-    categories
+        .await?;
+    Ok(categories)
 }
 
 #[cfg(test)]
@@ -30,8 +30,8 @@ mod tests {
     use sqlx::SqlitePool;
 
     #[sqlx::test(migrations = "./src/db/migrations")]
-    async fn test_add_category_async(pool: SqlitePool) {
-        add_category_async(
+    async fn test_add_category(pool: SqlitePool) {
+        add_category(
             Category {
                 id: 0,
                 name: "Work".to_string(),
@@ -40,7 +40,8 @@ mod tests {
             },
             &pool,
         )
-        .await;
+        .await
+        .unwrap();
 
         let category: Category = sqlx::query_as("SELECT * FROM categories")
             .fetch_one(&pool)
@@ -54,8 +55,8 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./src/db/migrations")]
-    async fn test_list_categories_async(pool: SqlitePool) {
-        add_category_async(
+    async fn test_list_categories(pool: SqlitePool) {
+        add_category(
             Category {
                 id: 0,
                 name: "Work".to_string(),
@@ -64,9 +65,10 @@ mod tests {
             },
             &pool,
         )
-        .await;
+        .await
+        .unwrap();
 
-        let categories = list_categories_async(&pool).await;
+        let categories = list_categories(&pool).await.unwrap();
 
         assert_eq!(categories[0].id, 1);
         assert_eq!(categories[0].name, "Work");

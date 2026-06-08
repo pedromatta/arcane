@@ -4,12 +4,12 @@ use sqlx::FromRow;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Session {
-    id: u32,
-    category_id: u32,
-    start_time: NaiveDateTime,
-    duration_minutes: u32,
-    notes: Option<String>,
-    rating: Option<u32>,
+    pub id: u32,
+    pub category_id: u32,
+    pub start_time: NaiveDateTime,
+    pub duration_minutes: u32,
+    pub notes: Option<String>,
+    pub rating: Option<u32>,
 }
 
 #[cfg(test)]
