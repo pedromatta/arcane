@@ -28,6 +28,11 @@ pub enum Commands {
         #[command(subcommand)]
         subcommand: ScheduleCommands,
     },
+    /// Import categories and schedule from a TOML manifest
+    Import {
+        /// Path to the declarative manifest TOML file
+        path: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]

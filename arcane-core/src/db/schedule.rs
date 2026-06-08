@@ -1,6 +1,7 @@
 use crate::models::schedule_slot::{ScheduleSlot, ScheduleSlotDetail};
 use crate::models::schedule_override::ScheduleOverride;
 use crate::error::ArcaneError;
+use crate::config::ImportManifest;
 use sqlx::SqlitePool;
 use chrono::NaiveDate;
 
@@ -54,7 +55,6 @@ pub async fn add_schedule_slot(
     days_of_week_str: &str,
     pool: &SqlitePool,
 ) -> Result<(), ArcaneError> {
-    // 1. Resolve category name to ID
     let category_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE name = ? AND is_archived = 0")
         .bind(category_name.trim())
         .fetch_optional(pool)
@@ -70,7 +70,6 @@ pub async fn add_schedule_slot(
         }
     };
 
-    // 2. Validate time_of_day format (HH:MM)
     let parts: Vec<&str> = time_of_day.split(':').collect();
     if parts.len() != 2 {
         return Err(ArcaneError::CategoryValidation(format!(
@@ -91,7 +90,6 @@ pub async fn add_schedule_slot(
         )));
     }
 
-    // 3. Parse and validate days bitmask
     let days_of_week = parse_weekdays(days_of_week_str)?;
 
     sqlx::query(
@@ -209,6 +207,139 @@ pub async fn list_schedule_overrides(
     Ok(overrides)
 }
 
+pub async fn import_manifest(manifest: &ImportManifest, pool: &SqlitePool) -> Result<(), ArcaneError> {
+    let mut tx = pool.begin().await?;
+
+    // 1. Reconcile categories
+    for cat in &manifest.categories {
+        let trimmed_name = cat.name.trim();
+        if trimmed_name.is_empty() {
+            return Err(ArcaneError::CategoryValidation("Category name cannot be empty".to_string()));
+        }
+        
+        validate_color(&cat.color)?;
+
+        let existing_opt: Option<(i64, bool)> = sqlx::query_as(
+            "SELECT id, is_archived FROM categories WHERE name = ?"
+        )
+        .bind(trimmed_name)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some((id, is_archived)) = existing_opt {
+            if is_archived {
+                sqlx::query("UPDATE categories SET default_minutes = ?, color = ?, is_archived = 0 WHERE id = ?")
+                    .bind(cat.default_minutes)
+                    .bind(&cat.color)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await?;
+            } else {
+                sqlx::query("UPDATE categories SET default_minutes = ?, color = ? WHERE id = ?")
+                    .bind(cat.default_minutes)
+                    .bind(&cat.color)
+                    .bind(id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        } else {
+            sqlx::query("INSERT INTO categories (name, default_minutes, color, is_archived) VALUES (?, ?, ?, 0)")
+                .bind(trimmed_name)
+                .bind(cat.default_minutes)
+                .bind(&cat.color)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+
+    // 2. Clear old schedule slots if new ones are provided
+    if manifest.schedule.is_some() {
+        sqlx::query("DELETE FROM schedule_slots")
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    // 3. Reconcile schedule slots
+    if let Some(ref schedule_list) = manifest.schedule {
+        for sched in schedule_list {
+            let category_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE name = ? AND is_archived = 0")
+                .bind(sched.category.trim())
+                .fetch_optional(&mut *tx)
+                .await?;
+
+            let category_id = match category_id_opt {
+                Some(id) => id as u32,
+                None => {
+                    return Err(ArcaneError::CategoryValidation(format!(
+                        "Category '{}' does not exist in manifest or active database",
+                        sched.category
+                    )))
+                }
+            };
+
+            let parts: Vec<&str> = sched.time.split(':').collect();
+            if parts.len() != 2 {
+                return Err(ArcaneError::CategoryValidation(format!("Invalid time format '{}'. Use HH:MM.", sched.time)));
+            }
+            let hour: u32 = parts[0].parse().map_err(|_| ArcaneError::CategoryValidation(format!("Invalid hour in time '{}'", sched.time)))?;
+            let min: u32 = parts[1].parse().map_err(|_| ArcaneError::CategoryValidation(format!("Invalid minute in time '{}'", sched.time)))?;
+            if hour > 23 || min > 59 {
+                return Err(ArcaneError::CategoryValidation(format!("Time parameters out of bounds in '{}'", sched.time)));
+            }
+
+            if sched.days > 127 {
+                return Err(ArcaneError::CategoryValidation(format!("Days bitmask {} exceeds 127", sched.days)));
+            }
+
+            sqlx::query("INSERT INTO schedule_slots (category_id, time_of_day, days_of_week) VALUES (?, ?, ?)")
+                .bind(category_id)
+                .bind(&sched.time)
+                .bind(sched.days)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
+fn validate_color(color: &str) -> Result<(), ArcaneError> {
+    let trimmed = color.trim().to_lowercase();
+    if trimmed.is_empty() {
+        return Err(ArcaneError::CategoryValidation("Color cannot be empty".to_string()));
+    }
+
+    const NAMED_COLORS: &[&str] = &[
+        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "gray",
+        "darkgray", "lightred", "lightgreen", "lightyellow", "lightblue",
+        "lightmagenta", "lightcyan", "white",
+    ];
+
+    if NAMED_COLORS.contains(&trimmed.as_str()) {
+        return Ok(());
+    }
+
+    if let Ok(_ansi_val) = trimmed.parse::<u8>() {
+        return Ok(());
+    }
+
+    let hex_body = if trimmed.starts_with('#') {
+        &trimmed[1..]
+    } else {
+        &trimmed[..]
+    };
+
+    if (hex_body.len() == 3 || hex_body.len() == 6) && hex_body.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(());
+    }
+
+    Err(ArcaneError::CategoryValidation(format!(
+        "Color must be a valid HEX code (with or without '#'), an ANSI integer (0-255), or one of the named colors: {:?}",
+        NAMED_COLORS
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,5 +378,50 @@ mod tests {
         assert_eq!(details[0].category_name, "Work");
         assert_eq!(details[0].time_of_day, "09:00");
         assert_eq!(details[0].days_of_week, 3);
+    }
+
+    #[sqlx::test(migrations = "./src/db/migrations")]
+    async fn test_import_manifest(pool: SqlitePool) {
+        use crate::config::{CategoryConfig, ScheduleConfig};
+
+        let manifest = ImportManifest {
+            categories: vec![
+                CategoryConfig {
+                    name: "Work".to_string(),
+                    default_minutes: 25,
+                    color: "red".to_string(),
+                },
+                CategoryConfig {
+                    name: "Rust".to_string(),
+                    default_minutes: 60,
+                    color: "magenta".to_string(),
+                },
+            ],
+            schedule: Some(vec![
+                ScheduleConfig {
+                    time: "09:00".to_string(),
+                    category: "Work".to_string(),
+                    days: 31,
+                },
+                ScheduleConfig {
+                    time: "11:00".to_string(),
+                    category: "Rust".to_string(),
+                    days: 127,
+                },
+            ]),
+        };
+
+        import_manifest(&manifest, &pool).await.unwrap();
+
+        let cats = crate::db::category::list_categories(&pool).await.unwrap();
+        assert_eq!(cats.len(), 2);
+        assert_eq!(cats[0].name, "Work");
+        assert_eq!(cats[1].name, "Rust");
+
+        let slots = list_schedule_slots_detail(&pool).await.unwrap();
+        assert_eq!(slots.len(), 2);
+        assert_eq!(slots[0].category_name, "Work");
+        assert_eq!(slots[0].time_of_day, "09:00");
+        assert_eq!(slots[0].days_of_week, 31);
     }
 }
