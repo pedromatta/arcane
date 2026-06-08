@@ -1,31 +1,28 @@
-mod helpers;
-mod models;
+mod cli;
+mod commands;
+
+use crate::cli::{CategoryCommands, Cli, Commands};
+use crate::commands::add::add_category;
+use crate::commands::setup::{get_config, initialize_app};
+use crate::commands::list::list_categories;
 use clap::Parser;
 
-use crate::helpers::add::add_category;
-use crate::helpers::init::{get_config, initialize_app};
-use crate::helpers::list::list_categories;
-
-use crate::models::category_commands::CategoryCommands;
-use crate::models::cli::Cli;
-use crate::models::commands::Commands;
-
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
+    let _ = dotenvy::dotenv();
+
     let cli = Cli::parse();
 
-    let config = get_config(cli.config.clone());
+    let config = get_config(cli.config.clone())?;
 
-    let db_url = config.general.database_path.unwrap();
+    let db_url = config
+        .general
+        .database_path
+        .ok_or_else(|| anyhow::anyhow!("database_path not set in configuration"))?;
 
-    let pool = initialize_app(&db_url).await.unwrap();
+    let pool = initialize_app(&db_url).await?;
 
     match &cli.command {
-        Some(Commands::Init) => {
-            initialize_app(&db_url)
-                .await
-                .expect("Failed to initialize database");
-        }
         Some(Commands::Log) => {
             println!("Log command selected. (Not implemented yet)");
         }
@@ -41,8 +38,12 @@ async fn main() {
                 list_categories(&pool).await;
             }
         },
-        _ => {}
+        _ => {
+            println!("Welcome to Arcane! Use --help to list commands.");
+        }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
