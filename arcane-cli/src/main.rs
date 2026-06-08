@@ -43,11 +43,11 @@ async fn main() -> anyhow::Result<()> {
         },
         Some(Commands::Schedule { subcommand }) => match subcommand {
             ScheduleCommands::Add {
-                category_id,
+                category,
                 time,
                 days,
             } => {
-                add_slot(&pool, *category_id, time, *days).await;
+                add_slot(&pool, category, time, days).await;
             }
             ScheduleCommands::List => {
                 list_slots(&pool).await;

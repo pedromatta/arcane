@@ -9,6 +9,15 @@ pub struct ScheduleSlot {
     pub days_of_week: u8,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, PartialEq, Eq)]
+pub struct ScheduleSlotDetail {
+    pub id: u32,
+    pub category_id: u32,
+    pub category_name: String,
+    pub time_of_day: String,
+    pub days_of_week: u8,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
