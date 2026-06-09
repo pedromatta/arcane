@@ -12,7 +12,7 @@ pub async fn initialize_app(db_url: &str) -> Result<SqlitePool> {
 
 pub fn get_config(cli_config: Option<std::path::PathBuf>) -> Result<AppConfig> {
     let config_path = cli_config
-        .or_else(|| get_default_config_path())
+        .or_else(get_default_config_path)
         .context("Could not determine configuration path")?;
 
     let config_content = std::fs::read_to_string(&config_path)

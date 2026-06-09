@@ -1,4 +1,6 @@
-use arcane_core::db::schedule::{add_schedule_slot, list_schedule_slots_detail, remove_schedule_slot};
+use arcane_core::db::schedule::{
+    add_schedule_slot, list_schedule_slots_detail, remove_schedule_slot,
+};
 use sqlx::SqlitePool;
 
 pub async fn add_slot(pool: &SqlitePool, category: &str, time: &str, days: &str) {
@@ -40,7 +42,7 @@ pub async fn list_slots(pool: &SqlitePool) {
                     .iter()
                     .filter(|s| (s.days_of_week & day_bit) != 0)
                     .collect();
-                
+
                 if !day_slots.is_empty() {
                     day_slots.sort_by(|a, b| a.time_of_day.cmp(&b.time_of_day));
                     println!("{}:", day_name);

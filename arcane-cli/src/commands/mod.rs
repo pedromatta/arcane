@@ -5,4 +5,5 @@ pub mod list;
 pub mod remove;
 pub mod schedule;
 pub mod setup;
+pub mod start;
 pub mod today;

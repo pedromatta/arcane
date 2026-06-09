@@ -1,7 +1,7 @@
+use crate::error::ArcaneError;
+use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use directories::ProjectDirs;
-use crate::error::ArcaneError;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
@@ -78,7 +78,11 @@ fn generate_default_config(config_dir: &Path) -> Result<(), ArcaneError> {
     let config_path = config_dir.join("config.toml");
     if !config_path.exists() {
         let default_db_path = get_default_db_path()
-            .ok_or_else(|| ArcaneError::ConfigValidation("Failed to determine default database path".to_string()))?
+            .ok_or_else(|| {
+                ArcaneError::ConfigValidation(
+                    "Failed to determine default database path".to_string(),
+                )
+            })?
             .to_string_lossy()
             .into_owned();
         let default_config = format!(
@@ -117,7 +121,8 @@ mod tests {
             days = 127
         "#;
 
-        let manifest: ImportManifest = toml::from_str(raw_toml).expect("Failed to parse valid manifest TOML");
+        let manifest: ImportManifest =
+            toml::from_str(raw_toml).expect("Failed to parse valid manifest TOML");
 
         assert_eq!(manifest.categories.len(), 1);
         assert_eq!(manifest.categories[0].name, "Rust");
@@ -136,7 +141,8 @@ mod tests {
             color = "blue"
         "#;
 
-        let manifest: ImportManifest = toml::from_str(raw_toml).expect("Failed to parse valid manifest TOML");
+        let manifest: ImportManifest =
+            toml::from_str(raw_toml).expect("Failed to parse valid manifest TOML");
 
         assert_eq!(manifest.categories.len(), 1);
         assert_eq!(manifest.categories[0].name, "Reading");
@@ -152,7 +158,10 @@ mod tests {
             notifications_enabled = false
         "#;
         let config: AppConfig = toml::from_str(raw_toml).expect("Failed to parse AppConfig");
-        assert_eq!(config.general.database_path.unwrap(), "~/.local/share/arcane/arcane.db");
+        assert_eq!(
+            config.general.database_path.unwrap(),
+            "~/.local/share/arcane/arcane.db"
+        );
         assert!(!config.general.notifications_enabled);
     }
 }

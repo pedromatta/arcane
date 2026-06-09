@@ -1,5 +1,5 @@
-use crate::models::category::Category;
 use crate::error::ArcaneError;
+use crate::models::category::Category;
 use sqlx::SqlitePool;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -11,7 +11,9 @@ pub enum RemovalResult {
 pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), ArcaneError> {
     let trimmed_name = category.name.trim();
     if trimmed_name.is_empty() {
-        return Err(ArcaneError::CategoryValidation("Category name cannot be empty".to_string()));
+        return Err(ArcaneError::CategoryValidation(
+            "Category name cannot be empty".to_string(),
+        ));
     }
 
     // Uniqueness validation
@@ -45,29 +47,37 @@ pub async fn add_category(category: Category, pool: &SqlitePool) -> Result<(), A
 }
 
 pub async fn list_categories(pool: &SqlitePool) -> Result<Vec<Category>, ArcaneError> {
-    let categories: Vec<Category> = sqlx::query_as("SELECT * FROM categories WHERE is_archived = 0")
-        .fetch_all(pool)
-        .await?;
+    let categories: Vec<Category> =
+        sqlx::query_as("SELECT * FROM categories WHERE is_archived = 0")
+            .fetch_all(pool)
+            .await?;
     Ok(categories)
 }
 
 pub async fn remove_category(name: &str, pool: &SqlitePool) -> Result<RemovalResult, ArcaneError> {
     let trimmed_name = name.trim();
 
-    let category_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE name = ?")
-        .bind(trimmed_name)
-        .fetch_optional(pool)
-        .await?;
+    let category_id_opt: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM categories WHERE name = ?")
+            .bind(trimmed_name)
+            .fetch_optional(pool)
+            .await?;
 
     let category_id = match category_id_opt {
         Some(id) => id,
-        None => return Err(ArcaneError::CategoryValidation(format!("Category '{}' does not exist", trimmed_name))),
+        None => {
+            return Err(ArcaneError::CategoryValidation(format!(
+                "Category '{}' does not exist",
+                trimmed_name
+            )));
+        }
     };
 
-    let session_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE category_id = ?")
-        .bind(category_id)
-        .fetch_one(pool)
-        .await?;
+    let session_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sessions WHERE category_id = ?")
+            .bind(category_id)
+            .fetch_one(pool)
+            .await?;
 
     if session_count == 0 {
         sqlx::query("DELETE FROM categories WHERE id = ?")
@@ -87,13 +97,28 @@ pub async fn remove_category(name: &str, pool: &SqlitePool) -> Result<RemovalRes
 fn validate_color(color: &str) -> Result<(), ArcaneError> {
     let trimmed = color.trim().to_lowercase();
     if trimmed.is_empty() {
-        return Err(ArcaneError::CategoryValidation("Color cannot be empty".to_string()));
+        return Err(ArcaneError::CategoryValidation(
+            "Color cannot be empty".to_string(),
+        ));
     }
 
     const NAMED_COLORS: &[&str] = &[
-        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "gray",
-        "darkgray", "lightred", "lightgreen", "lightyellow", "lightblue",
-        "lightmagenta", "lightcyan", "white",
+        "black",
+        "red",
+        "green",
+        "yellow",
+        "blue",
+        "magenta",
+        "cyan",
+        "gray",
+        "darkgray",
+        "lightred",
+        "lightgreen",
+        "lightyellow",
+        "lightblue",
+        "lightmagenta",
+        "lightcyan",
+        "white",
     ];
 
     if NAMED_COLORS.contains(&trimmed.as_str()) {
@@ -110,7 +135,9 @@ fn validate_color(color: &str) -> Result<(), ArcaneError> {
         &trimmed[..]
     };
 
-    if (hex_body.len() == 3 || hex_body.len() == 6) && hex_body.chars().all(|c| c.is_ascii_hexdigit()) {
+    if (hex_body.len() == 3 || hex_body.len() == 6)
+        && hex_body.chars().all(|c| c.is_ascii_hexdigit())
+    {
         return Ok(());
     }
 
