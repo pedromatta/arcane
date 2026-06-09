@@ -8,7 +8,7 @@ use crate::commands::import::import_cmd;
 use crate::commands::list::list_categories;
 use crate::commands::remove::remove_category_cmd;
 use crate::commands::schedule::{add_slot, list_slots, remove_slot};
-use crate::commands::setup::{get_config, initialize_app};
+use crate::commands::setup::{get_config, initialize_app, run_setup};
 use crate::commands::start::start_cmd;
 use crate::commands::today::today_cmd;
 use clap::Parser;
@@ -71,6 +71,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Start) => {
             start_cmd(&pool, config.general.notifications_enabled).await;
+        }
+        Some(Commands::Setup) => {
+            run_setup(&pool).await?;
         }
         _ => {
             println!("Welcome to Arcane! Use --help to list commands.");

@@ -44,6 +44,8 @@ pub enum Commands {
     },
     /// Sequentially executes today's timeline queue
     Start,
+    /// Guided setup wizard to configure database, categories, and schedule slots
+    Setup,
 }
 
 #[derive(Subcommand, Debug)]

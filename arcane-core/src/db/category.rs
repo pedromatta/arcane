@@ -94,7 +94,7 @@ pub async fn remove_category(name: &str, pool: &SqlitePool) -> Result<RemovalRes
     }
 }
 
-fn validate_color(color: &str) -> Result<(), ArcaneError> {
+pub fn validate_color(color: &str) -> Result<(), ArcaneError> {
     let trimmed = color.trim().to_lowercase();
     if trimmed.is_empty() {
         return Err(ArcaneError::CategoryValidation(
