@@ -1,14 +1,16 @@
-use crate::models::schedule_slot::{ScheduleSlot, ScheduleSlotDetail};
-use crate::models::schedule_override::ScheduleOverride;
-use crate::error::ArcaneError;
 use crate::config::ImportManifest;
-use sqlx::SqlitePool;
+use crate::error::ArcaneError;
+use crate::models::schedule_override::ScheduleOverride;
+use crate::models::schedule_slot::{ScheduleSlot, ScheduleSlotDetail};
 use chrono::NaiveDate;
+use sqlx::SqlitePool;
 
 pub fn parse_weekdays(input: &str) -> Result<u8, ArcaneError> {
     let trimmed = input.trim().to_lowercase();
     if trimmed.is_empty() {
-        return Err(ArcaneError::CategoryValidation("Weekdays input cannot be empty".to_string()));
+        return Err(ArcaneError::CategoryValidation(
+            "Weekdays input cannot be empty".to_string(),
+        ));
     }
 
     match trimmed.as_str() {
@@ -36,14 +38,16 @@ pub fn parse_weekdays(input: &str) -> Result<u8, ArcaneError> {
                 return Err(ArcaneError::CategoryValidation(format!(
                     "Invalid weekday token '{}'. Valid options: mon, tue, wed, thu, fri, sat, sun, weekdays, weekend, everyday",
                     token
-                )))
+                )));
             }
         };
         bitmask |= bit;
     }
 
     if bitmask == 0 {
-        return Err(ArcaneError::CategoryValidation("No valid weekdays parsed from input".to_string()));
+        return Err(ArcaneError::CategoryValidation(
+            "No valid weekdays parsed from input".to_string(),
+        ));
     }
 
     Ok(bitmask)
@@ -55,10 +59,11 @@ pub async fn add_schedule_slot(
     days_of_week_str: &str,
     pool: &SqlitePool,
 ) -> Result<(), ArcaneError> {
-    let category_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE name = ? AND is_archived = 0")
-        .bind(category_name.trim())
-        .fetch_optional(pool)
-        .await?;
+    let category_id_opt: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM categories WHERE name = ? AND is_archived = 0")
+            .bind(category_name.trim())
+            .fetch_optional(pool)
+            .await?;
 
     let category_id = match category_id_opt {
         Some(id) => id as u32,
@@ -66,7 +71,7 @@ pub async fn add_schedule_slot(
             return Err(ArcaneError::CategoryValidation(format!(
                 "Category '{}' does not exist or is archived",
                 category_name
-            )))
+            )));
         }
     };
 
@@ -114,14 +119,16 @@ pub async fn list_schedule_slots(pool: &SqlitePool) -> Result<Vec<ScheduleSlot>,
     Ok(slots)
 }
 
-pub async fn list_schedule_slots_detail(pool: &SqlitePool) -> Result<Vec<ScheduleSlotDetail>, ArcaneError> {
+pub async fn list_schedule_slots_detail(
+    pool: &SqlitePool,
+) -> Result<Vec<ScheduleSlotDetail>, ArcaneError> {
     let slots: Vec<ScheduleSlotDetail> = sqlx::query_as(
         r#"
             SELECT s.id, s.category_id, c.name as category_name, s.time_of_day, s.days_of_week
             FROM schedule_slots s
             JOIN categories c ON s.category_id = c.id
             WHERE c.is_archived = 0
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
@@ -152,21 +159,22 @@ pub async fn add_schedule_override(
     pool: &SqlitePool,
 ) -> Result<(), ArcaneError> {
     if let Some(cat_id) = category_id {
-        let exists: Option<bool> = sqlx::query_scalar("SELECT is_archived FROM categories WHERE id = ?")
-            .bind(cat_id)
-            .fetch_optional(pool)
-            .await?;
+        let exists: Option<bool> =
+            sqlx::query_scalar("SELECT is_archived FROM categories WHERE id = ?")
+                .bind(cat_id)
+                .fetch_optional(pool)
+                .await?;
         match exists {
             Some(true) => {
                 return Err(ArcaneError::CategoryValidation(
                     "Cannot schedule override for an archived category".to_string(),
-                ))
+                ));
             }
             None => {
                 return Err(ArcaneError::CategoryValidation(format!(
                     "Category ID {} does not exist",
                     cat_id
-                )))
+                )));
             }
             _ => {}
         }
@@ -195,7 +203,7 @@ pub async fn add_schedule_override(
     Ok(())
 }
 
-pub async fn add_tonight_override(
+pub async fn add_today_override(
     category_name: &str,
     time_of_day: &str,
     pool: &SqlitePool,
@@ -204,12 +212,11 @@ pub async fn add_tonight_override(
         None
     } else {
         let trimmed = category_name.trim();
-        let row: Option<(i64, bool)> = sqlx::query_as(
-            "SELECT id, is_archived FROM categories WHERE name = ?"
-        )
-        .bind(trimmed)
-        .fetch_optional(pool)
-        .await?;
+        let row: Option<(i64, bool)> =
+            sqlx::query_as("SELECT id, is_archived FROM categories WHERE name = ?")
+                .bind(trimmed)
+                .fetch_optional(pool)
+                .await?;
 
         match row {
             Some((id, false)) => Some(id as u32),
@@ -217,13 +224,13 @@ pub async fn add_tonight_override(
                 return Err(ArcaneError::CategoryValidation(format!(
                     "Category '{}' is archived",
                     trimmed
-                )))
+                )));
             }
             None => {
                 return Err(ArcaneError::CategoryValidation(format!(
                     "Category '{}' does not exist",
                     trimmed
-                )))
+                )));
             }
         }
     };
@@ -278,24 +285,28 @@ pub async fn list_schedule_overrides(
     Ok(overrides)
 }
 
-pub async fn import_manifest(manifest: &ImportManifest, pool: &SqlitePool) -> Result<(), ArcaneError> {
+pub async fn import_manifest(
+    manifest: &ImportManifest,
+    pool: &SqlitePool,
+) -> Result<(), ArcaneError> {
     let mut tx = pool.begin().await?;
 
     // 1. Reconcile categories
     for cat in &manifest.categories {
         let trimmed_name = cat.name.trim();
         if trimmed_name.is_empty() {
-            return Err(ArcaneError::CategoryValidation("Category name cannot be empty".to_string()));
+            return Err(ArcaneError::CategoryValidation(
+                "Category name cannot be empty".to_string(),
+            ));
         }
-        
+
         validate_color(&cat.color)?;
 
-        let existing_opt: Option<(i64, bool)> = sqlx::query_as(
-            "SELECT id, is_archived FROM categories WHERE name = ?"
-        )
-        .bind(trimmed_name)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let existing_opt: Option<(i64, bool)> =
+            sqlx::query_as("SELECT id, is_archived FROM categories WHERE name = ?")
+                .bind(trimmed_name)
+                .fetch_optional(&mut *tx)
+                .await?;
 
         if let Some((id, is_archived)) = existing_opt {
             if is_archived {
@@ -333,10 +344,11 @@ pub async fn import_manifest(manifest: &ImportManifest, pool: &SqlitePool) -> Re
     // 3. Reconcile schedule slots
     if let Some(ref schedule_list) = manifest.schedule {
         for sched in schedule_list {
-            let category_id_opt: Option<i64> = sqlx::query_scalar("SELECT id FROM categories WHERE name = ? AND is_archived = 0")
-                .bind(sched.category.trim())
-                .fetch_optional(&mut *tx)
-                .await?;
+            let category_id_opt: Option<i64> =
+                sqlx::query_scalar("SELECT id FROM categories WHERE name = ? AND is_archived = 0")
+                    .bind(sched.category.trim())
+                    .fetch_optional(&mut *tx)
+                    .await?;
 
             let category_id = match category_id_opt {
                 Some(id) => id as u32,
@@ -344,22 +356,35 @@ pub async fn import_manifest(manifest: &ImportManifest, pool: &SqlitePool) -> Re
                     return Err(ArcaneError::CategoryValidation(format!(
                         "Category '{}' does not exist in manifest or active database",
                         sched.category
-                    )))
+                    )));
                 }
             };
 
             let parts: Vec<&str> = sched.time.split(':').collect();
             if parts.len() != 2 {
-                return Err(ArcaneError::CategoryValidation(format!("Invalid time format '{}'. Use HH:MM.", sched.time)));
+                return Err(ArcaneError::CategoryValidation(format!(
+                    "Invalid time format '{}'. Use HH:MM.",
+                    sched.time
+                )));
             }
-            let hour: u32 = parts[0].parse().map_err(|_| ArcaneError::CategoryValidation(format!("Invalid hour in time '{}'", sched.time)))?;
-            let min: u32 = parts[1].parse().map_err(|_| ArcaneError::CategoryValidation(format!("Invalid minute in time '{}'", sched.time)))?;
+            let hour: u32 = parts[0].parse().map_err(|_| {
+                ArcaneError::CategoryValidation(format!("Invalid hour in time '{}'", sched.time))
+            })?;
+            let min: u32 = parts[1].parse().map_err(|_| {
+                ArcaneError::CategoryValidation(format!("Invalid minute in time '{}'", sched.time))
+            })?;
             if hour > 23 || min > 59 {
-                return Err(ArcaneError::CategoryValidation(format!("Time parameters out of bounds in '{}'", sched.time)));
+                return Err(ArcaneError::CategoryValidation(format!(
+                    "Time parameters out of bounds in '{}'",
+                    sched.time
+                )));
             }
 
             if sched.days > 127 {
-                return Err(ArcaneError::CategoryValidation(format!("Days bitmask {} exceeds 127", sched.days)));
+                return Err(ArcaneError::CategoryValidation(format!(
+                    "Days bitmask {} exceeds 127",
+                    sched.days
+                )));
             }
 
             sqlx::query("INSERT INTO schedule_slots (category_id, time_of_day, days_of_week) VALUES (?, ?, ?)")
@@ -401,20 +426,39 @@ pub async fn export_manifest(pool: &SqlitePool) -> Result<ImportManifest, Arcane
 
     Ok(ImportManifest {
         categories,
-        schedule: if schedule.is_empty() { None } else { Some(schedule) },
+        schedule: if schedule.is_empty() {
+            None
+        } else {
+            Some(schedule)
+        },
     })
 }
 
 fn validate_color(color: &str) -> Result<(), ArcaneError> {
     let trimmed = color.trim().to_lowercase();
     if trimmed.is_empty() {
-        return Err(ArcaneError::CategoryValidation("Color cannot be empty".to_string()));
+        return Err(ArcaneError::CategoryValidation(
+            "Color cannot be empty".to_string(),
+        ));
     }
 
     const NAMED_COLORS: &[&str] = &[
-        "black", "red", "green", "yellow", "blue", "magenta", "cyan", "gray",
-        "darkgray", "lightred", "lightgreen", "lightyellow", "lightblue",
-        "lightmagenta", "lightcyan", "white",
+        "black",
+        "red",
+        "green",
+        "yellow",
+        "blue",
+        "magenta",
+        "cyan",
+        "gray",
+        "darkgray",
+        "lightred",
+        "lightgreen",
+        "lightyellow",
+        "lightblue",
+        "lightmagenta",
+        "lightcyan",
+        "white",
     ];
 
     if NAMED_COLORS.contains(&trimmed.as_str()) {
@@ -431,7 +475,9 @@ fn validate_color(color: &str) -> Result<(), ArcaneError> {
         &trimmed[..]
     };
 
-    if (hex_body.len() == 3 || hex_body.len() == 6) && hex_body.chars().all(|c| c.is_ascii_hexdigit()) {
+    if (hex_body.len() == 3 || hex_body.len() == 6)
+        && hex_body.chars().all(|c| c.is_ascii_hexdigit())
+    {
         return Ok(());
     }
 
@@ -444,8 +490,8 @@ fn validate_color(color: &str) -> Result<(), ArcaneError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::category::Category;
     use crate::db::category::add_category;
+    use crate::models::category::Category;
 
     #[test]
     fn test_parse_weekdays() {
@@ -472,7 +518,9 @@ mod tests {
         .await
         .unwrap();
 
-        add_schedule_slot("Work", "09:00", "mon,tue", &pool).await.unwrap();
+        add_schedule_slot("Work", "09:00", "mon,tue", &pool)
+            .await
+            .unwrap();
 
         let details = list_schedule_slots_detail(&pool).await.unwrap();
         assert_eq!(details.len(), 1);
@@ -536,7 +584,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "./src/db/migrations")]
-    async fn test_tonight_override(pool: SqlitePool) {
+    async fn test_today_override(pool: SqlitePool) {
         use crate::db::category::add_category;
         use crate::models::category::Category;
 
@@ -554,27 +602,33 @@ mod tests {
         .unwrap();
 
         // 1. Success for active category
-        add_tonight_override("Exercise", "20:00", &pool).await.unwrap();
+        add_today_override("Exercise", "20:00", &pool)
+            .await
+            .unwrap();
 
         // 2. Success for "rest"
-        add_tonight_override("rest", "22:00", &pool).await.unwrap();
+        add_today_override("rest", "22:00", &pool).await.unwrap();
 
         // 3. Fails for non-existing category
-        let err = add_tonight_override("Study", "23:00", &pool).await.unwrap_err();
+        let err = add_today_override("Study", "23:00", &pool)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Category 'Study' does not exist"));
 
         // 4. Fails for invalid time format
-        let err2 = add_tonight_override("Exercise", "invalid", &pool).await.unwrap_err();
+        let err2 = add_today_override("Exercise", "invalid", &pool)
+            .await
+            .unwrap_err();
         assert!(err2.to_string().contains("Invalid time format"));
 
         // Verify inserted overrides
         let today = chrono::Local::now().date_naive();
         let list = list_schedule_overrides(today, &pool).await.unwrap();
         assert_eq!(list.len(), 2);
-        
+
         let ex_opt = list.iter().find(|o| o.time_of_day == "20:00").unwrap();
         assert!(ex_opt.category_id.is_some());
-        
+
         let rest_opt = list.iter().find(|o| o.time_of_day == "22:00").unwrap();
         assert!(rest_opt.category_id.is_none());
     }
