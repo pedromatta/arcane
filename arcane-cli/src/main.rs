@@ -9,6 +9,7 @@ use crate::commands::schedule::{add_slot, list_slots, remove_slot};
 use crate::commands::setup::{get_config, initialize_app};
 use crate::commands::import::import_cmd;
 use crate::commands::export::export_cmd;
+use crate::commands::tonight::tonight_cmd;
 use clap::Parser;
 
 #[tokio::main]
@@ -63,6 +64,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Export) => {
             export_cmd(&pool).await;
+        }
+        Some(Commands::Tonight { time, category }) => {
+            tonight_cmd(&pool, time, category).await;
         }
         _ => {
             println!("Welcome to Arcane! Use --help to list commands.");
@@ -157,5 +161,36 @@ days = 31
         export_cmd(&pool).await;
 
         let _ = std::fs::remove_file(manifest_path);
+    }
+
+    #[tokio::test]
+    async fn test_cli_tonight() {
+        use crate::commands::tonight::tonight_cmd;
+        use arcane_core::db::category::add_category;
+        use arcane_core::models::category::Category;
+
+        let pool = initialize_app("sqlite::memory:").await.unwrap();
+
+        add_category(
+            Category {
+                id: 0,
+                name: "Work".to_string(),
+                default_minutes: 25,
+                color: "red".to_string(),
+                is_archived: false,
+            },
+            &pool,
+        )
+        .await
+        .unwrap();
+
+        // Call tonight_cmd
+        tonight_cmd(&pool, "19:00", "Work").await;
+        tonight_cmd(&pool, "21:00", "rest").await;
+
+        // Verify that they are inserted in the database
+        let today = chrono::Local::now().date_naive();
+        let list = arcane_core::db::schedule::list_schedule_overrides(today, &pool).await.unwrap();
+        assert_eq!(list.len(), 2);
     }
 }

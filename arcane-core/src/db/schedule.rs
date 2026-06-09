@@ -195,6 +195,77 @@ pub async fn add_schedule_override(
     Ok(())
 }
 
+pub async fn add_tonight_override(
+    category_name: &str,
+    time_of_day: &str,
+    pool: &SqlitePool,
+) -> Result<(), ArcaneError> {
+    let category_id = if category_name.trim().to_lowercase() == "rest" {
+        None
+    } else {
+        let trimmed = category_name.trim();
+        let row: Option<(i64, bool)> = sqlx::query_as(
+            "SELECT id, is_archived FROM categories WHERE name = ?"
+        )
+        .bind(trimmed)
+        .fetch_optional(pool)
+        .await?;
+
+        match row {
+            Some((id, false)) => Some(id as u32),
+            Some((_, true)) => {
+                return Err(ArcaneError::CategoryValidation(format!(
+                    "Category '{}' is archived",
+                    trimmed
+                )))
+            }
+            None => {
+                return Err(ArcaneError::CategoryValidation(format!(
+                    "Category '{}' does not exist",
+                    trimmed
+                )))
+            }
+        }
+    };
+
+    // Validate time format (HH:MM)
+    let parts: Vec<&str> = time_of_day.split(':').collect();
+    if parts.len() != 2 {
+        return Err(ArcaneError::CategoryValidation(format!(
+            "Invalid time format '{}'. Use HH:MM.",
+            time_of_day
+        )));
+    }
+    let hour: u32 = parts[0].parse().map_err(|_| {
+        ArcaneError::CategoryValidation(format!("Invalid hour in time '{}'", time_of_day))
+    })?;
+    let min: u32 = parts[1].parse().map_err(|_| {
+        ArcaneError::CategoryValidation(format!("Invalid minute in time '{}'", time_of_day))
+    })?;
+    if hour > 23 || min > 59 {
+        return Err(ArcaneError::CategoryValidation(format!(
+            "Time parameters out of bounds in '{}'",
+            time_of_day
+        )));
+    }
+
+    let today = chrono::Local::now().date_naive();
+
+    sqlx::query(
+        r#"
+            INSERT OR REPLACE INTO schedule_overrides (category_id, override_date, time_of_day)
+            VALUES (?, ?, ?)
+        "#,
+    )
+    .bind(category_id)
+    .bind(today)
+    .bind(time_of_day)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn list_schedule_overrides(
     date: NaiveDate,
     pool: &SqlitePool,
@@ -462,5 +533,49 @@ mod tests {
         assert_eq!(exported.schedule.as_ref().unwrap()[0].time, "09:00");
         assert_eq!(exported.schedule.as_ref().unwrap()[0].category, "Work");
         assert_eq!(exported.schedule.as_ref().unwrap()[0].days, 31);
+    }
+
+    #[sqlx::test(migrations = "./src/db/migrations")]
+    async fn test_tonight_override(pool: SqlitePool) {
+        use crate::db::category::add_category;
+        use crate::models::category::Category;
+
+        add_category(
+            Category {
+                id: 0,
+                name: "Exercise".to_string(),
+                default_minutes: 30,
+                color: "green".to_string(),
+                is_archived: false,
+            },
+            &pool,
+        )
+        .await
+        .unwrap();
+
+        // 1. Success for active category
+        add_tonight_override("Exercise", "20:00", &pool).await.unwrap();
+
+        // 2. Success for "rest"
+        add_tonight_override("rest", "22:00", &pool).await.unwrap();
+
+        // 3. Fails for non-existing category
+        let err = add_tonight_override("Study", "23:00", &pool).await.unwrap_err();
+        assert!(err.to_string().contains("Category 'Study' does not exist"));
+
+        // 4. Fails for invalid time format
+        let err2 = add_tonight_override("Exercise", "invalid", &pool).await.unwrap_err();
+        assert!(err2.to_string().contains("Invalid time format"));
+
+        // Verify inserted overrides
+        let today = chrono::Local::now().date_naive();
+        let list = list_schedule_overrides(today, &pool).await.unwrap();
+        assert_eq!(list.len(), 2);
+        
+        let ex_opt = list.iter().find(|o| o.time_of_day == "20:00").unwrap();
+        assert!(ex_opt.category_id.is_some());
+        
+        let rest_opt = list.iter().find(|o| o.time_of_day == "22:00").unwrap();
+        assert!(rest_opt.category_id.is_none());
     }
 }

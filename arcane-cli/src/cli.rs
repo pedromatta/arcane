@@ -35,6 +35,13 @@ pub enum Commands {
     },
     /// Export categories and schedule as a serialized TOML manifest to stdout
     Export,
+    /// Override a scheduled slot for tonight (temporarily replaces schedule)
+    Tonight {
+        /// Start time for the override slot (HH:MM)
+        time: String,
+        /// Category name (or "rest" for a blank slot)
+        category: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
