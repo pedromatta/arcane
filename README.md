@@ -1,5 +1,5 @@
 # Arcane
-## A local-first command-line schedule manager and spaced repetition routine planner
+## Routine planner utility developed in Rust
 
 Arcane is a command-line interface (CLI) study routine planner and active scheduler. Built fto optimize daily learning cycle. It's a developer-focused offline tool, that includes:
     
