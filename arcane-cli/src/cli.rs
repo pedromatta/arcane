@@ -42,6 +42,8 @@ pub enum Commands {
         /// Category name (or "rest" for a blank slot)
         category: String,
     },
+    /// Sequentially executes today's timeline queue
+    Start,
 }
 
 #[derive(Subcommand, Debug)]

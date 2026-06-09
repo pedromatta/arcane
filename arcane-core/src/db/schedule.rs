@@ -2,7 +2,7 @@ use crate::config::ImportManifest;
 use crate::error::ArcaneError;
 use crate::models::schedule_override::ScheduleOverride;
 use crate::models::schedule_slot::{ScheduleSlot, ScheduleSlotDetail};
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use sqlx::SqlitePool;
 
 pub fn parse_weekdays(input: &str) -> Result<u8, ArcaneError> {
@@ -267,6 +267,31 @@ pub async fn add_today_override(
     .bind(category_id)
     .bind(today)
     .bind(time_of_day)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn log_session(
+    category_id: u32,
+    start_time: NaiveDateTime,
+    duration_minutes: u32,
+    notes: Option<&str>,
+    rating: Option<u32>,
+    pool: &SqlitePool,
+) -> Result<(), ArcaneError> {
+    sqlx::query(
+        r#"
+            INSERT INTO sessions (category_id, start_time, duration_minutes, notes, rating)
+            VALUES (?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(category_id)
+    .bind(start_time)
+    .bind(duration_minutes)
+    .bind(notes)
+    .bind(rating)
     .execute(pool)
     .await?;
 
@@ -631,5 +656,48 @@ mod tests {
 
         let rest_opt = list.iter().find(|o| o.time_of_day == "22:00").unwrap();
         assert!(rest_opt.category_id.is_none());
+    }
+
+    #[sqlx::test(migrations = "./src/db/migrations")]
+    async fn test_db_log_session(pool: SqlitePool) {
+        use crate::db::category::add_category;
+        use crate::models::category::Category;
+
+        add_category(
+            Category {
+                id: 1,
+                name: "Rust".to_string(),
+                default_minutes: 60,
+                color: "magenta".to_string(),
+                is_archived: false,
+            },
+            &pool,
+        )
+        .await
+        .unwrap();
+
+        let start_time = chrono::Local::now().naive_local();
+        log_session(
+            1,
+            start_time,
+            45,
+            Some("Test session notes"),
+            Some(4),
+            &pool,
+        )
+        .await
+        .unwrap();
+
+        let sessions: Vec<crate::models::session::Session> =
+            sqlx::query_as("SELECT * FROM sessions")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].category_id, 1);
+        assert_eq!(sessions[0].duration_minutes, 45);
+        assert_eq!(sessions[0].notes, Some("Test session notes".to_string()));
+        assert_eq!(sessions[0].rating, Some(4));
     }
 }

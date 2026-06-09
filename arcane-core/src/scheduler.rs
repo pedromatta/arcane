@@ -1,5 +1,5 @@
-use crate::models::schedule_slot::ScheduleSlot;
 use crate::models::schedule_override::ScheduleOverride;
+use crate::models::schedule_slot::ScheduleSlot;
 use chrono::{Datelike, NaiveDate};
 use serde::{Deserialize, Serialize};
 

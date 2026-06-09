@@ -9,6 +9,7 @@ use crate::commands::list::list_categories;
 use crate::commands::remove::remove_category_cmd;
 use crate::commands::schedule::{add_slot, list_slots, remove_slot};
 use crate::commands::setup::{get_config, initialize_app};
+use crate::commands::start::start_cmd;
 use crate::commands::today::today_cmd;
 use clap::Parser;
 
@@ -67,6 +68,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Today { time, category }) => {
             today_cmd(&pool, time, category).await;
+        }
+        Some(Commands::Start) => {
+            start_cmd(&pool, config.general.notifications_enabled).await;
         }
         _ => {
             println!("Welcome to Arcane! Use --help to list commands.");
@@ -198,5 +202,12 @@ days = 31
             .await
             .unwrap();
         assert_eq!(list.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_cli_start_empty() {
+        let pool = initialize_app("sqlite::memory:").await.unwrap();
+        // Should return immediately since there are no tasks scheduled for today
+        start_cmd(&pool, false).await;
     }
 }
